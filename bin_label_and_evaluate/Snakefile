@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-localrules: bwa_index_setup, postprocess_raw, postprocess_final, label_bins, kraken_translate, bin_tig_mapping
+localrules: bwa_index_setup, postprocess_raw, postprocess_final, label_bins, bin_tig_mapping
 
 samp = config['sample']
 if 'reads2' in config and not config['reads2'] == '':
@@ -13,13 +13,18 @@ if 'long_read' in config and config['long_read']:
 else:
 	long_read = False
 
+def get_bins(wildcards):
+	outputs = checkpoints.metabat.get(**wildcards).output[0]
+	return glob_wildcards(os.path.join(outputs, "{bin}.fa")).bin
+
 rule all:
 	input:
 		reads,
 		config['assembly'],
 		config['krakendb'],
 		expand("{foo}/final/{foo}.tsv", foo = config['sample']),
-		'{sample}/final/bin_tig_mapping.tsv'.format(sample = samp)
+		'{sample}/final/bin_tig_mapping.tsv'.format(sample = config['sample'])
+		#"{samp}/checkm/checkm.tsv".format(samp = config['sample'])
 
 rule bwa_index_setup:
 	input:
@@ -98,12 +103,12 @@ rule metabat_pre:
 		'jgi_summarize_bam_contig_depths --outputDepth {samp}/{samp}.fa.depth.txt --pairedContigs {samp}/{samp}.fa.paired.txt ' +
 		'--minContigLength 1000 --minContigDepth 1  {input} --percentIdentity 50'
 
-rule metabat:
+checkpoint metabat:
 	input:
 		"{samp}/idx/{samp}.fa",
 		rules.metabat_pre.output
 	output:
-		dynamic("{samp}/bins/{bin}.fa") #the number of bins is unknown prior to execution, hence 'dynamic'
+		directory("{samp}/bins/") #the number of bins is unknown prior to execution
 	resources:
 		mem=64,
 		time=24
@@ -114,7 +119,7 @@ rule metabat:
 
 rule checkm:
 	input:
-		dynamic(rules.metabat.output)
+		lambda wildcards: aggregate_checkpoint(checkpoints.metabat, "{wildcards.samp}/bins/", ".fa", wildcards)
 	output:
 		"{samp}/checkm/checkm.tsv"
 	log:
@@ -255,16 +260,19 @@ rule kraken:
 	input:
 		"{samp}/idx/{samp}.fa"
 	output:
-		"{samp}/classify/{samp}.krak"
+		"{samp}/classify/{samp}.tsv" #"{samp}/classify/{samp}.krak",
 	log:
 		"{samp}/logs/kraken_class.log"
 	resources:
 		mem=320,
 		time=6
 	shell:
-		"kraken --db {krak} ".format(krak = config['krakendb']) +
-		" --fasta-input {input} --output {output} --preload"
+		"kraken2 --db {krak} ".format(krak = config['krakendb']) +
+		"--threads {threads} --output {output[0]} --use-names " +
+        " {input} "
+		 #--report {output[1]}--use-mpa-style "
 
+'''
 rule kraken_translate:
 	input:
 		"{samp}/classify/{samp}.krak"
@@ -279,10 +287,11 @@ rule kraken_translate:
 		"kraken-translate {input} --mpa-format " +
 		"--db {krak} ".format(krak=config['krakendb']) +
 		"> {output}"
+'''
 
 rule label_bins:
 	input:
-		"{samp}/classify/{samp}.tsv",
+		rules.kraken.output,
 		dynamic(rules.fasta_index.output)
 	output:
 		"{samp}/classify/bin_species_calls.tsv"
@@ -293,13 +302,13 @@ rule label_bins:
 
 rule postprocess_raw:
 	input:
-		dynamic(rules.prokka.output),
-		dynamic(rules.quast.output),
-		rules.checkm.output,
-		dynamic(rules.aragorn.output),
-		dynamic(rules.barrnap.output),
-		dynamic(rules.bin_coverage.output),
-		rules.label_bins.output
+		lambda wildcards: expand("{samp}/prokka/{bin}.fa/{samp}_{bin}.fa.gff", bin = get_bins(wildcards), samp = wildcards.samp)
+		#dynamic(rules.quast.output),
+		#rules.checkm.output,
+		#dynamic(rules.aragorn.output),
+		#dynamic(rules.barrnap.output),
+		#dynamic(rules.bin_coverage.output),
+		#rules.label_bins.output
 	output:
 		"{samp}/final/prokka.tmp",
 		"{samp}/final/quast.tmp",
@@ -313,7 +322,14 @@ rule postprocess_raw:
 	resources:
 		mem=2,
 		time=1
-	shell: 
+	run:
+		print(get_bins(wildcards))
+		print(expand("{samp}/prokka/{bin}.fa/{samp}_{bin}.fa.gff", bin = get_bins(wildcards), samp = wildcards.samp))
+		print(aggregate_prokka(wildcards))
+		print(input)
+
+'''
+	shell:
 		"(echo 'Sample Bin Coverage' | tr ' ' '\t'; " +
 			"cat {samp}/coverage/*.txt) > {samp}/final/coverage.tmp; " +
 		"(echo 'Sample Bin Genes' | tr ' ' '\t'; \
@@ -331,6 +347,9 @@ rule postprocess_raw:
 		"(echo 'Sample Bin Majority.Class Majority.Fraction Size.Mb Final.Class' | tr ' ' '\t'; " +
 			"cat {samp}/classify/bin_species_calls.tsv" + " | sed 's/\.fa//g' | sed 's/^/{samp}\t/g') > {samp}/final/classify.tmp;"
 #grep Total {samp}/rna/trna/* | sed 's/\/rna\/trna\//\\t/g' | sed 's/.fa.txt:Total tRNA genes = /\\t/g') > {samp}/final/trna.tmp; " + \
+
+
+'''
 rule postprocess_final:
 	input:
 		rules.postprocess_raw.output
@@ -346,4 +365,3 @@ rule bin_tig_mapping:
 	output: '{samp}/final/bin_tig_mapping.tsv'
 	shell:
 		"ls {samp}/bins/ | grep fai  | xargs -n 1 -I foo sh -c \"cat {samp}/bins/foo | sed 's/^/foo\t/g' \" | sed 's/.fa.fai//g' | cut -f1,2 > {output}"
-
