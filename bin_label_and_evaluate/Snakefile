@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-localrules: bwa_index_setup, postprocess_raw, postprocess_final, label_bins, bin_tig_mapping
+localrules: bwa_index_setup, postprocess_raw, postprocess_final, label_bins, bin_tig_mapping, metabat
 
 samp = config['sample']
 if 'reads2' in config and not config['reads2'] == '':
@@ -23,8 +23,6 @@ rule all:
 		config['assembly'],
 		config['krakendb'],
 		expand("{foo}/final/{foo}.tsv", foo = config['sample']),
-		'{sample}/final/bin_tig_mapping.tsv'.format(sample = config['sample'])
-		#"{samp}/checkm/checkm.tsv".format(samp = config['sample'])
 
 rule bwa_index_setup:
 	input:
@@ -90,7 +88,7 @@ rule align_lr:
 	resources:
 		mem=48,
 		time=6
-	threads: 32
+	threads: 16
 	shell:
 		"minimap2 -t {threads} -ax map-ont {input} | samtools sort --threads {threads} > {output}"
 
@@ -112,7 +110,7 @@ checkpoint metabat:
 	resources:
 		mem=64,
 		time=24
-	threads: 24
+	threads: 4
 	shell:
 		'metabat2 --seed 1 -t {threads} --unbinned --inFile {samp}/idx/{samp}.fa ' +
 		'--outFile {samp}/bins/bin --abdFile {samp}/{samp}.fa.depth.txt'
@@ -181,10 +179,10 @@ rule prokka:
 	resources:
 		mem=48,
 		time=1,
-	threads: 16
+	threads: 8
 	shell:
 		"prokka {input} --outdir {samp}/prokka/{wildcards.bin}.fa " +
-		"--prefix {samp}_{wildcards.bin}.fa --centre X --compliant --force --cpus {threads}"
+		"--prefix {samp}_{wildcards.bin}.fa --centre X --compliant --force --cpus {threads} --noanno"
 
 rule bam_idx:
 	input:
@@ -260,7 +258,7 @@ rule kraken:
 	input:
 		"{samp}/idx/{samp}.fa"
 	output:
-		"{samp}/classify/{samp}.tsv" #"{samp}/classify/{samp}.krak",
+		"{samp}/classify/{samp}.tsv"
 	log:
 		"{samp}/logs/kraken_class.log"
 	resources:
@@ -269,25 +267,7 @@ rule kraken:
 	shell:
 		"kraken2 --db {krak} ".format(krak = config['krakendb']) +
 		"--threads {threads} --output {output[0]} --use-names " +
-        " {input} "
-		 #--report {output[1]}--use-mpa-style "
-
-'''
-rule kraken_translate:
-	input:
-		"{samp}/classify/{samp}.krak"
-	output:
-		"{samp}/classify/{samp}.tsv"
-	log:
-		"{samp}/logs/kraken_trans.log"
-	resources:
-		mem=8,
-		time=1
-	shell:
-		"kraken-translate {input} --mpa-format " +
-		"--db {krak} ".format(krak=config['krakendb']) +
-		"> {output}"
-'''
+		" {input} "
 
 rule label_bins:
 	input:
@@ -303,12 +283,13 @@ rule label_bins:
 rule postprocess_raw:
 	input:
 		lambda wildcards: expand("{samp}/prokka/{bin}.fa/{samp}_{bin}.fa.gff", bin = get_bins(wildcards), samp = wildcards.samp)
-		#dynamic(rules.quast.output),
-		#rules.checkm.output,
+#		dynamic(rules.prokka.output),
+	#	dynamic(rules.quast.output),
+		rules.checkm.output,
 		#dynamic(rules.aragorn.output),
 		#dynamic(rules.barrnap.output),
 		#dynamic(rules.bin_coverage.output),
-		#rules.label_bins.output
+		rules.label_bins.output
 	output:
 		"{samp}/final/prokka.tmp",
 		"{samp}/final/quast.tmp",
