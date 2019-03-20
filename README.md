@@ -1,6 +1,8 @@
 # Metagenomics Workflows
 Workflows for metagenomic sequence data processing and analysis.  Further documentation found in each workflow folder.
 
+### Long read assembly has been moved to a new repository: [Lathe](https://github.com/elimoss/lathe)
+
 # Installing workflows
 
 First, install [miniconda3](https://conda.io/en/latest/miniconda.html)
