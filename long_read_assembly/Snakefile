@@ -82,7 +82,7 @@ rule merge:
 	resources:
 		time=6,
 		mem=24
-	singularity: singularity_image
+	singularity: "shub://elimoss/metagenomics_workflows:quickmerge"
 	shell:
 		"merge_wrapper.py {input} -pre {sample}/1.assemble/{sample}_merged -lm 40000 -c 5 -hco 10; mv merged.fasta {output}"
 
@@ -502,8 +502,8 @@ def aggregate_overcirc_trim(wildcards):
 
 rule circularize_final:
 	input:
-		rules.assemble_final.output,
-		rules.assemble_final.output[0] + '.fai',
+		rules.polish_final.output,
+		rules.polish_final.output[0] + '.fai',
 		aggregate_overcirc_trim,
 		aggregate_span_trim
 	output:
