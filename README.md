@@ -86,6 +86,12 @@ Before running this workflow, please do the following:
 
 Known problems: occasionally fails after binning step. Just re-run snakemake.  This is a problem with dynamic job scheduling, and will hopefully be fixed in a future snakemake update.
 
+to run, please use the following:
+
+```
+snakemake -s path/to/metagenomics_workflows/bin_label_and_evaluate/Snakefile --configfile path/to/modified_config.yaml --restart-times 0 --keep-going
+#--profile scg #run this on a cluster.  this is highly recommended.  See above.
+```
 
 # assembly_comparison_circos
 Snakemake workflow for visualizing assemblies of a particular genome across conditions and time points.  Calls out pre-identified sequences, highlights selected contigs.
