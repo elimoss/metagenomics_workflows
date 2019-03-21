@@ -117,7 +117,7 @@ checkpoint metabat:
 
 rule checkm:
 	input:
-		lambda wildcards: aggregate_checkpoint(checkpoints.metabat, "{wildcards.samp}/bins/", ".fa", wildcards)
+		lambda wildcards: expand("{samp}/bins/{bin}.fa", bin = get_bins(wildcards), samp = wildcards.samp)
 	output:
 		"{samp}/checkm/checkm.tsv"
 	log:
@@ -272,7 +272,7 @@ rule kraken:
 rule label_bins:
 	input:
 		rules.kraken.output,
-		dynamic(rules.fasta_index.output)
+		lambda wildcards: expand(rules.fasta_index.output, bin = get_bins(wildcards), samp = wildcards.samp)
 	output:
 		"{samp}/classify/bin_species_calls.tsv"
 	log:
@@ -282,13 +282,12 @@ rule label_bins:
 
 rule postprocess_raw:
 	input:
-		lambda wildcards: expand("{samp}/prokka/{bin}.fa/{samp}_{bin}.fa.gff", bin = get_bins(wildcards), samp = wildcards.samp)
-#		dynamic(rules.prokka.output),
-	#	dynamic(rules.quast.output),
 		rules.checkm.output,
-		#dynamic(rules.aragorn.output),
-		#dynamic(rules.barrnap.output),
-		#dynamic(rules.bin_coverage.output),
+		lambda wildcards: expand(rules.prokka.output, bin = get_bins(wildcards), samp = wildcards.samp),
+		lambda wildcards: expand(rules.quast.output, bin = get_bins(wildcards), samp = wildcards.samp),
+		lambda wildcards: expand(rules.aragorn.output, bin = get_bins(wildcards), samp = wildcards.samp),
+		lambda wildcards: expand(rules.barrnap.output, bin = get_bins(wildcards), samp = wildcards.samp),
+		lambda wildcards: expand(rules.bin_coverage.output, bin = get_bins(wildcards), samp = wildcards.samp),
 		rules.label_bins.output
 	output:
 		"{samp}/final/prokka.tmp",
@@ -303,13 +302,6 @@ rule postprocess_raw:
 	resources:
 		mem=2,
 		time=1
-	run:
-		print(get_bins(wildcards))
-		print(expand("{samp}/prokka/{bin}.fa/{samp}_{bin}.fa.gff", bin = get_bins(wildcards), samp = wildcards.samp))
-		print(aggregate_prokka(wildcards))
-		print(input)
-
-'''
 	shell:
 		"(echo 'Sample Bin Coverage' | tr ' ' '\t'; " +
 			"cat {samp}/coverage/*.txt) > {samp}/final/coverage.tmp; " +
@@ -329,8 +321,6 @@ rule postprocess_raw:
 			"cat {samp}/classify/bin_species_calls.tsv" + " | sed 's/\.fa//g' | sed 's/^/{samp}\t/g') > {samp}/final/classify.tmp;"
 #grep Total {samp}/rna/trna/* | sed 's/\/rna\/trna\//\\t/g' | sed 's/.fa.txt:Total tRNA genes = /\\t/g') > {samp}/final/trna.tmp; " + \
 
-
-'''
 rule postprocess_final:
 	input:
 		rules.postprocess_raw.output
