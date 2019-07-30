@@ -3,26 +3,28 @@ require(circlize)
 output = snakemake@output[[1]]
 pdf(output, width = 8, height = 8)#, res = 300, units = 'in', type = 'cairo')
 
-#rRNA
+#rRNA. if this file is empty, don't plot highlight points.
 highlight = tryCatch({
 	read.table(snakemake@input[[3]])
 	},
 	error = function(cond) {},
 	finally = {draw.highlights = FALSE}
 )
+#rRNA intensities. IF this file is empty, don't plot, just produce an empty matrix.
 highlight.intensities = tryCatch({
 	read.table(snakemake@input[[4]])
 	},
 	error = function(cond) {return(matrix(ncol=2, nrow = 0))}
 )
-#contig alignments
+
+#load contig alignments
 contig.alignments = unlist(snakemake@input)[5:length(snakemake@input)]
 timepoint = sapply(contig.alignments, function(x) strsplit(strsplit(basename(x), '\\.')[[1]][1], '_')[[1]][2])
 condition = sapply(contig.alignments, function(x) strsplit(strsplit(basename(x), '\\.')[[1]][1], '_')[[1]][1])
 
 contig.alignments = data.frame(contig.alignments, timepoint, condition)
 
-
+#if some contigs should be plotted darker, load that file. if it's empty, return an empty matrix.
 dark.contigs = tryCatch({
 		read.table(snakemake@input[[2]])
 	},
@@ -31,12 +33,11 @@ dark.contigs = tryCatch({
 	}
 )
 colnames(dark.contigs) = c('assembly', 'condition', 'timepoint', 'contig')
-
 if (nrow(dark.contigs)!=0){
 	dark.contigs = merge(dark.contigs, contig.alignments)
 }
 
-#genome
+#load the reference sequence used in the alignments.
 genome = read.table(snakemake@input[[1]])
 
 #aesthetic knobs
@@ -46,10 +47,12 @@ track.height = 0.5
 contig.alpha = 0.3
 highlight_offset = 1.2
 
+#track colors. one of these is taken directly from the Snakemake config, but can be hard-coded.
 color1 = "#241E1E"
 color2 = snakemake@params[[1]] #"#557BB8"
 color3 = "#5AC6E2"
 
+#ready the colors for plotting by altering their transparency
 bed1.color = adjustcolor(color1, alpha = contig.alpha)
 bed2.color = adjustcolor(color2, alpha = contig.alpha)
 bed3.color = adjustcolor(color3, alpha = contig.alpha)
@@ -61,6 +64,7 @@ bed3.color = adjustcolor(color3, alpha = 0.9)
 bed.colors.bold = c(bed1.color, bed2.color, bed3.color)
 
 
+#set highlight colors and transparencies. Not used if highlight files are empty.
 locus.alpha = 1
 
 color.highlight = rgb(0.8, 0.3, 0.1, alpha = locus.alpha)
@@ -71,20 +75,20 @@ contig_height = 0.5
 min.contig.size = 0
 contig.shave.width = 1000
 
-#init
-genome = genome[genome[,2] > min.contig.size,]
-par(mar =c(2, 2, 2, 2))
-circos.par("track.height" = track.height,canvas.xlim =c(-1, 1), canvas.ylim =c(-1, 1), "start.degree" = 90)
-cytoband = data.frame(genome[,1], rep(0, nrow(genome)), genome[,2], genome[,1], rep('foo', nrow(genome)))
-cytoband[,1] = as.character(cytoband[,1])
-circos.initializeWithIdeogram(cytoband=cytoband, plotType = NULL)
-genome.length = sum(cytoband[,3])
-breaks = seq(0, genome.length, by = tick.interval)
+#initialize genome plot
+genome = genome[genome[,2] > min.contig.size,] #filter small contigs from the assembly
+par(mar =c(2, 2, 2, 2)) #set figure margins
+circos.par("track.height" = track.height,canvas.xlim =c(-1, 1), canvas.ylim =c(-1, 1), "start.degree" = 90)  #set circos orientation and location
+cytoband = data.frame(genome[,1], rep(0, nrow(genome)), genome[,2], genome[,1], rep('foo', nrow(genome))) #frankly, I don't remember
+cytoband[,1] = as.character(cytoband[,1]) #shrug
+circos.initializeWithIdeogram(cytoband=cytoband, plotType = NULL) #initialize the plot
+genome.length = sum(cytoband[,3]) #get total length...
+breaks = seq(0, genome.length, by = tick.interval) #...and divide in order to obtain tick intervals.
 
 #CONTIGS
 for (tp in unique(timepoint)){
 
-	#contigs
+	#group the contigs together in one list for plotting
 	beds = contig.alignments$contig.alignments[contig.alignments$timepoint == tp]
 
 	contig.list = lapply(beds, function(bed){
@@ -94,7 +98,7 @@ for (tp in unique(timepoint)){
 		contigs1[,3] = contigs1[,3] - contig.shave.width
 		contigs1
 	})
-
+	#plot the contigs
 	circos.genomicTrackPlotRegion(contig.list, bg.border = NA, stack = TRUE, track.height = track.height, ylim = c(0,0.5), panel.fun =function(region, value, ...) {
 		i = getI(...)
 		col = bed.colors.faint[i]
@@ -122,6 +126,9 @@ for (tp in unique(timepoint)){
 		}
 	})
 }
+
+#everything below this is for plotting callout points, e.g. indicating gene locations or some such. Generally not used.
+
 
 #deduplicate highlight sequence beds
 #highlight_interval = 30000

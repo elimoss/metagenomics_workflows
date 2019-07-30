@@ -3,3 +3,4 @@ dark_contigs: "inputs/dark_contigs_condtp.tsv"
 highlight_sequences: "inputs/insertion_sequences/flanks.fa"
 highlight_intensities: "inputs/insertion_sequences/ancestral_read_fractions.tsv"
 assemblies: "inputs/assemblies.tsv"
+outer_track_color: '#8DD3C7' 

@@ -12,3 +12,8 @@
  * **Assemblies**: List of assemblies annotated with condition and time point from which to find contigs mapping to the chosen ref. Three tab delimited columns: assembly, condition, timepoint. Conditions and timepoints can be any string, so long as it matches that from other assemblies of the same group. No underscores allowed! The order of conditions (from the bottom of each track to the top) will reflect what is found in this file. The time points are sorted alphabetically.
 
  * **Highlight intensities**: <# time points + 1> tab-delimited columns.  First is highlight sequence identifiers.  Second through last are decimals ranging 0 to 1 inclusive indicating the strength of highlight desired. Filled and empty circles are used for values above and below 0.5.  Values below 0 receive an 'x'.
+
+The dark contigs, highlight sequences and highlight intensities files can be blank, and those features will be omitted from the output.
+
+You can run this workflow with e.g. `snakemake -s ~/moss/tools/metagenomics_workflows/assembly_comparison_circos/Snakefile \
+--configfile config.yaml --cores 8 --resources mem_gb=32`
