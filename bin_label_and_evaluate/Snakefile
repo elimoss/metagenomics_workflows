@@ -223,7 +223,7 @@ rule bin_idxstats:
 		mem=2,
 		time=1
 	shell:
-		"grep '>' {input[0]} | tr -d '>' | xargs -I foo -n 1 grep -P 'foo\t' {input[1]} > {output}"
+		"grep '>' {input[0]} | tr -d '>' | xargs -I foo -n 1 grep -P 'foo\\t' {input[1]} > {output}"
 
 rule bin_coverage:
 	input:
